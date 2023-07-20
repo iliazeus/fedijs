@@ -73,8 +73,6 @@ export async function fetchCollectionByUrl(url, opts = {}) {
 }
 
 function _convertAccount(account, url, opts = {}) {
-  const enableAnimations = opts.enableAnimations ?? false;
-
   return {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
@@ -87,9 +85,9 @@ function _convertAccount(account, url, opts = {}) {
     url: account.url,
     preferredUsername: account.username,
     published: account.created_at,
-    icon: enableAnimations
-      ? account.avatar && { url: account.avatar }
-      : account.avatar_static && { url: account.avatar_static },
+    icon:
+      (account.avatar_static && { url: account.avatar_static }) ||
+      (account.avatar && { url: account.avatar }),
   };
 }
 

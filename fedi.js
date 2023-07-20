@@ -2,6 +2,7 @@ let _apis = null;
 const _apiByOrigin = new Map();
 
 let _activitypub;
+let _backend;
 
 export async function fetch(ref, opts = {}) {
   const responseType = opts.responseType ?? "object";
@@ -10,21 +11,21 @@ export async function fetch(ref, opts = {}) {
     _apis = (
       await Promise.all([
         import("./fedi-activitypub.js").catch((e) => void console.log(e)),
+        import("./fedi-backend.js").catch((e) => void console.log(e)),
         import("./fedi-mastodon.js").catch((e) => void console.log(e)),
         import("./fedi-misskey.js").catch((e) => void console.log(e)),
       ])
     ).filter((x) => !!x);
 
     _activitypub = _apis.find((x) => x.type === "activitypub");
-
-    console.log(_apis);
+    _backend = _apis.find((x) => x.type === "backend");
   }
 
   const log = opts.log;
 
   if (ref === undefined || ref === null) return ref;
 
-  if (typeof ref === "string") {
+  if (typeof ref === "string" || ref instanceof URL) {
     const url = new URL(ref);
 
     const apiByOrigin = _apiByOrigin.get(url.origin);
@@ -40,19 +41,23 @@ export async function fetch(ref, opts = {}) {
     let bestApi = _activitypub;
     let bestConfidence = 0;
 
-    await Promise.all(
-      _apis.map((api) =>
-        api
-          .checkUrl(url, opts)
-          .then((confidence) => {
-            if (confidence > bestConfidence) {
-              bestApi = api;
-              bestConfidence = confidence;
-            }
-          })
-          .catch((error) => log?.(error))
-      )
-    );
+    if (opts.backendUrl) {
+      bestApi = _backend;
+    } else {
+      await Promise.all(
+        _apis.map((api) =>
+          api
+            .checkUrl(url, opts)
+            .then((confidence) => {
+              if (confidence > bestConfidence) {
+                bestApi = api;
+                bestConfidence = confidence;
+              }
+            })
+            .catch((error) => log?.(error))
+        )
+      );
+    }
 
     const result = await _fetchByUrl(bestApi, url, opts);
 
