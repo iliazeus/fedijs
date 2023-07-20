@@ -1,0 +1,22 @@
+{
+  "name": "fedijs",
+  "version": "0.1.0",
+  "description": "an ActivityPub library that aims to be hyper-compatible, falling back to instance-specific APIs where necessary",
+  "main": "fedi.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iliazeus/fedijs.git"
+  },
+  "keywords": [
+    "activitypub",
+    "mastodon",
+    "misskey",
+    "fediverse"
+  ],
+  "author": "Ilia Pozdnyakov <iliazeus@proton.me>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/iliazeus/fedijs/issues"
+  },
+  "homepage": "https://github.com/iliazeus/fedijs#readme"
+}
