@@ -77,7 +77,6 @@ export const withCorsProxy =
     if (!corsProxyPrefix) return fetch;
 
     const proxiedOrigins = new Set();
-    const clearOrigins = new Set();
 
     return async function fetchWithCorsProxy(url, init = {}) {
       const parsedUrl = new URL(url, "local://");
@@ -85,14 +84,9 @@ export const withCorsProxy =
         return await fetch(url, init);
       }
 
-      if (clearOrigins.has(parsedUrl.origin)) {
-        return await fetch(url, init);
-      }
-
       if (!proxiedOrigins.has(parsedUrl.origin)) {
         try {
           const response = await fetch(url, init);
-          clearOrigins.add(parsedUrl.origin);
           return response;
         } catch (error) {
           if (error === init.signal?.reason) throw error;
