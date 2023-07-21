@@ -1,4 +1,4 @@
-export const type = "backend";
+export const API_KIND = "backend";
 
 export async function checkUrl(url, opts = {}) {
   return -1;
@@ -23,11 +23,17 @@ export async function fetchObjectByUrl(url, opts = {}) {
   });
 
   if (!response.ok) {
+    const json = await response.json().catch(() => undefined);
+
     throw Object.assign(
-      new Error(`failed to fetch ${url}`, {
-        statusCode: response.status,
-        json: (await response.json()).error,
-      })
+      new Error(
+        `${API_KIND}: failed to fetch ${url}` + (json ? `: ${json.error}` : ""),
+        {
+          statusCode: response.status,
+          api: API_KIND,
+          json: json?.error,
+        }
+      )
     );
   }
 

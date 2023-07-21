@@ -1,6 +1,6 @@
 import * as activitypub from "./fedi-activitypub.js";
 
-export const type = "misskey";
+export const API_KIND = "misskey";
 
 const _compatibleSourceRepos = new Set([
   "https://github.com/misskey-dev/misskey",
@@ -48,7 +48,7 @@ export async function fetchObjectByUrl(url, opts = {}) {
 
   try {
     const obj = await activitypub.fetchObjectByUrl(url, opts);
-    obj._fedijs.api = "misskey";
+    obj._fedijs.api = API_KIND;
 
     if (obj.type === "Note") {
       const children = await _apiFetch(
@@ -99,7 +99,7 @@ function _convertUser(user, url, opts = {}) {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
-      api: "misskey",
+      api: API_KIND,
     },
 
     type: "Person",
@@ -118,7 +118,7 @@ function _convertNote(note, url, opts = {}) {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
-      api: "misskey",
+      api: API_KIND,
     },
 
     type: "Note",
@@ -146,7 +146,7 @@ function _convertNoteRepliesCollection(notes, url, opts = {}) {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
-      api: "misskey",
+      api: API_KIND,
     },
 
     type: "Collection",
@@ -156,7 +156,7 @@ function _convertNoteRepliesCollection(notes, url, opts = {}) {
       "@context": "https://www.w3.org/ns/activitystreams",
       _fedijs: {
         fetchedFromOrigin: url.origin,
-        api: "misskey",
+        api: API_KIND,
       },
 
       type: "CollectionPage",
@@ -177,7 +177,18 @@ async function _apiFetch(url, params, opts = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(await response.text().catch(() => undefined));
+    const json = response.json().catch(() => undefined);
+
+    throw Object.assign(
+      new Error(
+        `${API_KIND}: failed to fetch ${url}` +
+          (json ? `: ${json.error.message}` : ""),
+        {
+          statusCode: response.status,
+          json: json?.error.message,
+        }
+      )
+    );
   }
 
   return await response.json();

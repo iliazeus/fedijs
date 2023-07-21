@@ -1,4 +1,4 @@
-export const type = "activitypub";
+export const API_KIND = "activitypub";
 
 export async function checkUrl(url, opts = {}) {
   return await _checkObject(await fetchObjectByUrl(url, opts), opts);
@@ -48,17 +48,25 @@ export async function fetchObjectByUrl(url, opts = {}) {
   });
 
   if (!response.ok) {
+    const json = response.json().catch(() => undefined);
+
     throw Object.assign(
-      new Error(`failed to fetch ${url}`, {
-        json: await response.json().catch(() => undefined),
-      })
+      new Error(
+        `${API_KIND}: failed to fetch ${url}` +
+          (json ? `: ${JSON.stringify(json)}` : ""),
+        {
+          statusCode: response.status,
+          api: API_KIND,
+          json: json?.error,
+        }
+      )
     );
   }
 
   const obj = await response.json();
   obj._fedijs = {
     fetchedFromOrigin: url.origin,
-    api: "activitypub",
+    api: API_KIND,
   };
   return obj;
 }

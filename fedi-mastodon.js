@@ -1,6 +1,6 @@
 import * as activitypub from "./fedi-activitypub.js";
 
-export const type = "mastodon";
+export const API_KIND = "mastodon";
 
 export async function checkUrl(url, opts = {}) {
   try {
@@ -44,12 +44,12 @@ export async function fetchObjectByUrl(url, opts = {}) {
 
   try {
     const obj = await activitypub.fetchObjectByUrl(url, opts);
-    obj._fedijs.api = "mastodon";
+    obj._fedijs.api = API_KIND;
 
     if (obj.type === "Note" && !obj.replies) {
       url = await _apiFetchLocation(url, opts);
       obj.url = String(url);
-      
+
       let match;
 
       match = url.pathname.match(/\/([^/]+)$/);
@@ -126,7 +126,7 @@ function _convertAccount(account, url, opts = {}) {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
-      api: "mastodon",
+      api: API_KIND,
     },
 
     type: "Person",
@@ -147,7 +147,7 @@ function _convertStatus(status, url, opts = {}) {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
-      api: "mastodon",
+      api: API_KIND,
     },
 
     type: "Note",
@@ -178,7 +178,7 @@ function _convertStatusRepliesCollection(statuses, url, opts = {}) {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
-      api: "mastodon",
+      api: API_KIND,
     },
 
     type: "Collection",
@@ -188,7 +188,7 @@ function _convertStatusRepliesCollection(statuses, url, opts = {}) {
       "@context": "https://www.w3.org/ns/activitystreams",
       _fedijs: {
         fetchedFromOrigin: url.origin,
-        api: "mastodon",
+        api: API_KIND,
       },
 
       type: "CollectionPage",
@@ -209,7 +209,7 @@ function _convertMediaAttachment(att, url, opts = {}) {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
-      api: "mastodon",
+      api: API_KIND,
     },
 
     type,
@@ -223,6 +223,21 @@ async function _apiFetchLocation(url, opts = {}) {
   const fetch = opts.fetch ?? globalThis.fetch;
 
   const response = await fetch(url, { method: "head" });
+
+  if (!response.ok) {
+    const json = response.json().catch(() => undefined);
+
+    throw Object.assign(
+      new Error(
+        `${API_KIND}: failed to fetch ${url}` + (json ? `: ${json.error}` : ""),
+        {
+          statusCode: response.status,
+          json: json?.error,
+        }
+      )
+    );
+  }
+
   return new URL(response.url, url);
 }
 
@@ -230,13 +245,22 @@ async function _apiFetch(url, opts = {}) {
   const fetch = opts.fetch ?? globalThis.fetch;
 
   const response = await fetch(url);
-  const json = await response.json();
 
   if (!response.ok) {
-    throw Object.assign(new Error(json.error), { code: response.status });
+    const json = response.json().catch(() => undefined);
+
+    throw Object.assign(
+      new Error(
+        `${API_KIND}: failed to fetch ${url}` + (json ? `: ${json.error}` : ""),
+        {
+          statusCode: response.status,
+          json: json?.error,
+        }
+      )
+    );
   }
 
-  return json;
+  return await response.json();
 }
 
 async function* _apiFetchPaged(url, opts = {}) {
@@ -244,13 +268,23 @@ async function* _apiFetchPaged(url, opts = {}) {
 
   do {
     const response = await fetch(url);
-    const json = await response.json();
 
     if (!response.ok) {
-      throw Object.assign(new Error(json.error), { code: response.status });
+      const json = response.json().catch(() => undefined);
+
+      throw Object.assign(
+        new Error(
+          `${API_KIND}: failed to fetch ${url}` +
+            (json ? `: ${json.error}` : ""),
+          {
+            statusCode: response.status,
+            json: json?.error,
+          }
+        )
+      );
     }
 
-    yield json;
+    yield await response.json();
 
     const links = (response.headers.get("link") ?? "")
       .split(",")

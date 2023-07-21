@@ -17,8 +17,8 @@ export async function fetch(ref, opts = {}) {
       ])
     ).filter((x) => !!x);
 
-    _activitypub = _apis.find((x) => x.type === "activitypub");
-    _backend = _apis.find((x) => x.type === "backend");
+    _activitypub = _apis.find((x) => x.API_KIND === "activitypub");
+    _backend = _apis.find((x) => x.API_KIND === "backend");
   }
 
   const log = opts.log;
@@ -44,7 +44,7 @@ export async function fetch(ref, opts = {}) {
     if (opts.backendUrl) {
       bestApi = _backend;
     } else if (url.protocol === "fedijs:") {
-      bestApi = _apis.find((x) => x.type === url.hostname);
+      bestApi = _apis.find((x) => x.API_KIND === url.hostname);
     } else {
       await Promise.all(
         _apis.map((api) =>
