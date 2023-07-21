@@ -182,10 +182,10 @@ async function _apiFetch(url, params, opts = {}) {
     throw Object.assign(
       new Error(
         `${API_KIND}: failed to fetch ${url}` +
-          (json ? `: ${json.error.message}` : ""),
+          (json ? `: ${json.error?.message}` : ""),
         {
           statusCode: response.status,
-          json: json?.error.message,
+          json,
         }
       )
     );
