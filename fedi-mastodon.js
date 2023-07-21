@@ -20,9 +20,53 @@ export async function checkUrl(url, opts = {}) {
 }
 
 export async function fetchObjectByUrl(url, opts = {}) {
+  if (url.protocol === "fedijs:") {
+    const query = url.searchParams.get("q");
+
+    if (query === "replies") {
+      const origin = url.searchParams.get("o");
+      const statusId = url.searchParams.get("id");
+
+      const context = await _apiFetch(
+        `${origin}/api/v1/statuses/${statusId}/context`,
+        opts
+      );
+
+      return _convertStatusRepliesCollection(
+        context.descendants.filter((x) => x.in_reply_to_id === statusId),
+        new URL(origin),
+        opts
+      );
+    }
+
+    throw new Error(`unsupported query: ${url}`);
+  }
+
   try {
     const obj = await activitypub.fetchObjectByUrl(url, opts);
     obj._fedijs.api = "mastodon";
+
+    if (obj.type === "Note" && !obj.replies) {
+      url = await _apiFetchLocation(url, opts);
+      obj.url = String(url);
+      
+      let match;
+
+      match = url.pathname.match(/\/([^/]+)$/);
+      if (match) {
+        const context = await _apiFetch(
+          `${url.origin}/api/v1/statuses/${match[1]}/context`,
+          opts
+        );
+
+        obj.replies = _convertStatusRepliesCollection(
+          context.descendants.filter((x) => x.in_reply_to_id === match[1]),
+          url,
+          opts
+        );
+      }
+    }
+
     return obj;
   } catch (error) {
     let match;
@@ -30,7 +74,8 @@ export async function fetchObjectByUrl(url, opts = {}) {
     match = url.pathname.match(/^\/(?:users\/|@)([^/]+)$/);
     if (match) {
       const account = await _apiFetch(
-        `${url.origin}/api/v1/accounts/lookup?acct=${match[1]}`
+        `${url.origin}/api/v1/accounts/lookup?acct=${match[1]}`,
+        opts
       );
       return _convertAccount(account, url, opts);
     }
@@ -40,10 +85,12 @@ export async function fetchObjectByUrl(url, opts = {}) {
     );
     if (match) {
       const status = await _apiFetch(
-        `${url.origin}/api/v1/statuses/${match[2]}`
+        `${url.origin}/api/v1/statuses/${match[2]}`,
+        opts
       );
       const context = await _apiFetch(
-        `${url.origin}/api/v1/statuses/${match[2]}/context`
+        `${url.origin}/api/v1/statuses/${match[2]}/context`,
+        opts
       );
       return _convertStatus(status, url, { ...opts, context });
     }
@@ -53,10 +100,12 @@ export async function fetchObjectByUrl(url, opts = {}) {
     );
     if (match) {
       const status = await _apiFetch(
-        `${url.origin}/api/v1/statuses/${match[2]}`
+        `${url.origin}/api/v1/statuses/${match[2]}`,
+        opts
       );
       const context = await _apiFetch(
-        `${url.origin}/api/v1/statuses/${match[2]}/context`
+        `${url.origin}/api/v1/statuses/${match[2]}/context`,
+        opts
       );
 
       const apStatus = _convertStatus(status, url, { ...opts, context });
@@ -118,16 +167,13 @@ function _convertStatus(status, url, opts = {}) {
       ? _convertStatusRepliesCollection(
           context.descendants.filter((x) => x.in_reply_to_id === status.id),
           url,
-          { ...opts, status }
+          opts
         )
-      : `${status.uri}/replies`,
+      : `fedijs://mastodon?o=${url.origin}&q=replies&id=${status.id}`,
   };
 }
 
 function _convertStatusRepliesCollection(statuses, url, opts = {}) {
-  const status = opts.status;
-  if (!status) throw new TypeError("status");
-
   return {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
@@ -136,8 +182,7 @@ function _convertStatusRepliesCollection(statuses, url, opts = {}) {
     },
 
     type: "Collection",
-    id: `${status.uri}/replies`,
-    totalItems: status.replies_count,
+    totalItems: statuses.length,
 
     first: {
       "@context": "https://www.w3.org/ns/activitystreams",
@@ -147,7 +192,6 @@ function _convertStatusRepliesCollection(statuses, url, opts = {}) {
       },
 
       type: "CollectionPage",
-      id: `${status.uri}/replies?page=true`,
       items: statuses.map((x) =>
         _convertStatus(x, url, { ...opts, context: undefined })
       ),
@@ -173,6 +217,13 @@ function _convertMediaAttachment(att, url, opts = {}) {
     url: att.url,
     summary: att.description,
   };
+}
+
+async function _apiFetchLocation(url, opts = {}) {
+  const fetch = opts.fetch ?? globalThis.fetch;
+
+  const response = await fetch(url, { method: "head" });
+  return new URL(response.url, url);
 }
 
 async function _apiFetch(url, opts = {}) {

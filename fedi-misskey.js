@@ -23,6 +23,29 @@ export async function checkUrl(url, opts = {}) {
 }
 
 export async function fetchObjectByUrl(url, opts = {}) {
+  if (url.protocol === "fedijs:") {
+    const query = url.searchParams.get("q");
+
+    if (query === "replies") {
+      const origin = url.searchParams.get("o");
+      const noteId = url.searchParams.get("id");
+
+      const children = await _apiFetch(
+        `${origin}/api/notes/children`,
+        { noteId, depth: 1, limit: 50 },
+        opts
+      );
+
+      return _convertNoteRepliesCollection(
+        children.filter((x) => x.replyId === noteId),
+        new URL(origin),
+        opts
+      );
+    }
+
+    throw new Error(`unsupported query: ${url}`);
+  }
+
   try {
     const obj = await activitypub.fetchObjectByUrl(url, opts);
     obj._fedijs.api = "misskey";
@@ -37,7 +60,7 @@ export async function fetchObjectByUrl(url, opts = {}) {
       obj.replies = _convertNoteRepliesCollection(
         children.filter((x) => x.reply.uri === obj.id),
         url,
-        { ...opts, noteUri: note.uri ?? `${url.origin}/notes/${note.id}` }
+        opts
       );
     }
 
@@ -112,16 +135,13 @@ function _convertNote(note, url, opts = {}) {
       ? _convertNoteRepliesCollection(
           children.filter((x) => x.replyId === note.id),
           url,
-          { ...opts, noteUri: note.uri ?? `${url.origin}/notes/${note.id}` }
+          opts
         )
-      : undefined,
+      : `fedijs://misskey?o=${url.origin}&q=replies&id=${note.id}`,
   };
 }
 
 function _convertNoteRepliesCollection(notes, url, opts = {}) {
-  const noteUri = opts.noteUri;
-  if (!noteUri) throw new TypeError("note");
-
   return {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
@@ -130,7 +150,6 @@ function _convertNoteRepliesCollection(notes, url, opts = {}) {
     },
 
     type: "Collection",
-    id: `${noteUri}/replies?invented-by=fedijs`,
     totalItems: notes.length,
 
     first: {
@@ -141,7 +160,6 @@ function _convertNoteRepliesCollection(notes, url, opts = {}) {
       },
 
       type: "CollectionPage",
-      id: `${noteUri}/replies?page=true&invented-by=fedijs`,
       items: notes.map((x) =>
         _convertNote(x, url, { ...opts, children: undefined })
       ),

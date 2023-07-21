@@ -43,6 +43,8 @@ export async function fetch(ref, opts = {}) {
 
     if (opts.backendUrl) {
       bestApi = _backend;
+    } else if (url.protocol === "fedijs:") {
+      bestApi = _apis.find((x) => x.type === url.hostname);
     } else {
       await Promise.all(
         _apis.map((api) =>
@@ -59,6 +61,7 @@ export async function fetch(ref, opts = {}) {
       );
     }
 
+    if (!bestApi) throw new Error(`unable to find api for ${url}`);
     const result = await _fetchByUrl(bestApi, url, opts);
 
     _apiByOrigin.set(url.origin, bestApi);
@@ -70,8 +73,10 @@ export async function fetch(ref, opts = {}) {
 
     const id = ref.id;
     const fetchedFromOrigin = ref._fedijs?.fetchedFromOrigin;
+    const partial = ref._fedijs?.partial;
 
     if (
+      !partial &&
       typeof fetchedFromOrigin === "string" &&
       typeof id === "string" &&
       new URL(id).origin === fetchedFromOrigin &&

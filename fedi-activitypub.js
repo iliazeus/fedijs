@@ -33,6 +33,12 @@ async function _fetchObject(ref, opts = {}) {
 }
 
 export async function fetchObjectByUrl(url, opts = {}) {
+  if (url.protocol === "fedijs:") {
+    throw new Error(
+      `"fedijs://" protocol not supported for plain ActivityPub API`
+    );
+  }
+
   const fetch = opts.fetch ?? globalThis.fetch;
   const signal = opts.signal;
 
