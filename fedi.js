@@ -121,12 +121,22 @@ export async function fetch(ref, opts = {}) {
 async function _fetchByUrl(api, url, opts = {}) {
   const responseType = opts.responseType ?? "object";
 
-  if (responseType === "object") {
-    return await api.fetchObjectByUrl(url, opts);
-  }
+  try {
+    if (responseType === "object") {
+      return await api.fetchObjectByUrl(url, opts);
+    }
 
-  if (responseType === "collection") {
-    return await api.fetchCollectionByUrl(url, opts);
+    if (responseType === "collection") {
+      return await api.fetchCollectionByUrl(url, opts);
+    }
+  } catch (error) {
+    if (api === _activitypub || api === _backend) throw error;
+
+    try {
+      return await _fetchByUrl(_activitypub, url, opts);
+    } catch {
+      throw error;
+    }
   }
 
   throw new TypeError(`unknown responseType: ${responseType}`);
