@@ -143,17 +143,24 @@ function _convertAccount(account, url, opts = {}) {
 function _convertStatus(status, url, opts = {}) {
   const context = opts.context;
 
+  // apparently, akkoma does that sometimes? something to do with unauthed user?
+  // event though it doesn't mind giving the account via activitypub
+  const hasAccount = status.account && Object.keys(status.account) > 0;
+
   return {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
       api: API_KIND,
+      partial: !hasAccount,
     },
 
     type: "Note",
     id: status.uri,
     url: status.url,
-    attributedTo: _convertAccount(status.account, url, opts),
+    attributedTo: hasAccount
+      ? _convertAccount(status.account, url, opts)
+      : null,
     published: status.created_at,
     content: status.content,
     attachment: status.mediaAttachments?.map((x) =>
