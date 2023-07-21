@@ -44,7 +44,13 @@ export async function fetch(ref, opts = {}) {
     if (opts.backendUrl) {
       bestApi = _backend;
     } else if (url.protocol === "fedijs:") {
+      // browser URL parsers don't seem to like non-http(s) URLs
+      url.protocol = "https:";
+
       bestApi = _apis.find((x) => x.API_KIND === url.hostname);
+
+      // APIs need the protocol and searchParams, not the rest
+      url.protocol = "fedijs:";
     } else {
       await Promise.all(
         _apis.map((api) =>
