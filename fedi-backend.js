@@ -10,10 +10,6 @@ async function _fetchObject(ref, opts = {}) {
   return ref;
 }
 
-function _isPrimitive(x) {
-  return (typeof x !== "object" || x === null) && typeof x !== "function";
-}
-
 export async function fetchObjectByUrl(url, opts = {}) {
   const fetch = opts.fetch ?? globalThis.fetch;
   const signal = opts.signal;
