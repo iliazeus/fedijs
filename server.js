@@ -26,20 +26,35 @@ const server = http.createServer(async (req, res) => {
     const response = await fedi.fetch(paramUrl, {
       ...Object.fromEntries(paramUrl.searchParams.entries()),
       responseType: "object",
+
       fetch: (url, opts) => {
         console.log(`> ${opts?.method ?? "get"} ${url}`);
-        return globalThis.fetch(url, opts);
+
+        return globalThis.fetch(url, {
+          ...opts,
+          signal: AbortSignal.timeout(10_000),
+        });
       },
     });
 
     const body = Buffer.from(JSON.stringify(response), "utf-8");
 
+    const headers = {
+      "content-type":
+        'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+      "content-length": body.byteLength,
+    };
+
+    if (response.type === "Person") {
+      headers["cache-control"] = "max-age=3600, immutable";
+    } else if (response.type === "Note") {
+      headers["cache-control"] = "max-age=600, immutable";
+    }
+
     res
       .writeHead(200, {
         ...commonHeaders,
-        "content-type":
-          'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-        "content-length": body.byteLength,
+        ...headers,
       })
       .end(body);
   } catch (error) {
