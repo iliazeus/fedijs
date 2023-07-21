@@ -113,7 +113,7 @@ export const withTimeout =
     return async function fetchWithTimeout(url, init = {}) {
       if (!init.signal && AbortSignal.timeout) {
         return await fetch(url, {
-          ...initRest,
+          ...init,
           signal: AbortSignal.timeout(timeout),
         });
       }
