@@ -2,25 +2,35 @@ import * as http from "node:http";
 import * as fedi from "./fedi.js";
 
 const undici = await import("undici").catch(() => null);
+const nodeFetch = await import("node-fetch").catch(() => null);
 
 let baseFetch;
 
 if (undici) {
   const dispatcher = new undici.Agent({
-    maxResponseSize: 100 * 1024,
+    maxRedirections: 5,
+    maxResponseSize: 2 * 1024 * 1024,
+    strictContentLength: false,
   });
 
-  baseFetch = async function baseFetch(url, init = {}) {
+  baseFetch = async function wrappedUndiciFetch(url, init = {}) {
     return await undici.fetch(url, { ...init, dispatcher });
   };
+} else if (nodeFetch) {
+  baseFetch = async function wrappedNodeFetch(url, init = {}) {
+    return await nodeFetch.default(url, {
+      ...init,
+      follow: 5,
+      size: 2 * 1024 * 1024,
+    });
+  };
 } else {
-  console.warn(`undici is not available; some limits will not be enforced`);
+  console.warn(`no fetch packages found; some limits will not be enforced`);
+  console.warn(`please install either undici or node-fetch to resolve`);
+
+  if (!globalThis.fetch) throw new Error(`global fetch is not available`);
 
   baseFetch = globalThis.fetch;
-}
-
-if (!baseFetch) {
-  throw new Error(`fetch is not available and undici is not installed`);
 }
 
 const commonHeaders = {
@@ -49,15 +59,36 @@ const server = http.createServer(async (req, res) => {
       ...Object.fromEntries(paramUrl.searchParams.entries()),
       responseType: "object",
 
+      log: (s) => console.log(`${new Date().toISOString()} ${s}`),
+
       fetch: async function wrappedFetch(url, init) {
         console.log(
           `${new Date().toISOString()} > ${init?.method ?? "get"} ${url}`
         );
 
-        return await baseFetch(url, {
-          ...init,
-          signal: AbortSignal.timeout(10_000),
-        });
+        let response;
+
+        try {
+          response = await baseFetch(url, {
+            ...init,
+            signal: AbortSignal.timeout(30_000),
+          });
+        } catch (error) {
+          console.log(
+            `${new Date().toISOString()} > ${
+              init?.method ?? "get"
+            } ${url} ${error}`
+          );
+          throw error;
+        }
+
+        console.log(
+          `${new Date().toISOString()} > ${init?.method ?? "get"} ${url} ${
+            response.status
+          }`
+        );
+
+        return response;
       },
     });
 
