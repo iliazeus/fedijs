@@ -1,23 +1,6 @@
-import * as activitypub from "./fedi-activitypub.js";
+import * as activitypub from "./activitypub.js";
 
 export const API_KIND = "mastodon";
-
-export async function checkUrl(url, opts = {}) {
-  try {
-    const instanceV2 = await _apiFetch(`${url.origin}/api/v2/instance`, opts);
-
-    return instanceV2.source_url === "https://github.com/mastodon/mastodon"
-      ? 1
-      : 0.8;
-  } catch {
-    const instanceV1 = await _apiFetch(`${url.origin}/api/v1/instance`, opts);
-
-    if (instanceV1.pleroma?.metadata.features.includes("mastodon_api"))
-      return 0.9;
-
-    return 0.8;
-  }
-}
 
 export async function fetchObjectByUrl(url, opts = {}) {
   if (url.protocol === "fedijs:") {

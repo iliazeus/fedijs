@@ -1,90 +1,82 @@
-let _apis = null;
-const _apiByOrigin = new Map();
+import * as apis from "./apis/index.js";
+import { detectAndPrioritizeApis } from "./detect-api.js";
 
-let _activitypub;
-let _backend;
+const _prioritizedApisByOrigin = new Map();
 
 export async function fetch(ref, opts = {}) {
   const responseType = opts.responseType ?? "object";
-
-  if (!_apis) {
-    _apis = (
-      await Promise.all([
-        import("./fedi-activitypub.js").catch((e) => void console.log(e)),
-        import("./fedi-backend.js").catch((e) => void console.log(e)),
-        import("./fedi-mastodon.js").catch((e) => void console.log(e)),
-        import("./fedi-misskey.js").catch((e) => void console.log(e)),
-      ])
-    ).filter((x) => !!x);
-
-    _activitypub = _apis.find((x) => x.API_KIND === "activitypub");
-    _backend = _apis.find((x) => x.API_KIND === "backend");
-  }
-
   const log = opts.log;
 
   if (ref === undefined || ref === null) return ref;
 
-  if (typeof ref === "string" || ref instanceof URL) {
-    const url = new URL(ref);
+  if (typeof ref === "string") {
+    ref = new URL(ref);
+  }
 
-    const apiByOrigin = _apiByOrigin.get(url.origin);
-    if (apiByOrigin) {
+  if (ref instanceof URL) {
+    if (opts.backendUrl) {
+      log?.(`fetching from backend: ${ref}`);
       try {
-        return await _fetchByUrl(apiByOrigin, url, opts);
+        const result = await _fetchByUrl(apis.backend, ref, opts);
+        log?.(`fetched from backend: ${ref}`);
+        return result;
       } catch (error) {
-        _apiByOrigin.delete(url.origin);
+        log?.(`error fetching ${ref} from backend: ${error}`);
         throw error;
       }
     }
 
-    let bestApi = _activitypub;
-
-    if (opts.backendUrl) {
-      bestApi = _backend;
-    } else if (url.protocol === "fedijs:") {
+    if (ref.protocol === "fedijs:") {
       // browser URL parsers don't seem to like non-http(s) URLs
-      url.protocol = "https:";
+      const httpsRef = new URL(ref);
+      httpsRef.protocol = "https:";
 
-      bestApi = _apis.find((x) => x.API_KIND === url.hostname);
+      const api = apis[httpsRef.hostname];
 
-      // APIs need the protocol and searchParams, not the rest
-      url.protocol = "fedijs:";
-    } else {
-      const guesses = await Promise.all(
-        _apis.map(async (api) => {
-          const confidence = await api.checkUrl(url, opts).catch((err) => {
-            log?.(
-              `${url} does not support ${api.API_KIND} because of error: ${err}`
-            );
+      if (!api) {
+        log?.(`${httpsRef.hostname} API not available`);
+        throw new Error(`${httpsRef.hostname} API not available`);
+      }
 
-            return 0;
-          });
-
-          log?.(
-            `${url} supports ${api.API_KIND} API with confidence ${confidence}`
-          );
-
-          return { api, confidence };
-        })
-      );
-
-      let bestConfidence = 0;
-      for (const { api, confidence } of guesses) {
-        if (confidence > bestConfidence) {
-          bestConfidence = confidence;
-          bestApi = api;
-        }
+      log?.(`fetching ${ref} with ${api.API_KIND} API`);
+      try {
+        const result = await _fetchByUrl(api, ref, opts);
+        log?.(`fetched ${ref} wit ${api.API_KIND} API`);
+        return result;
+      } catch (error) {
+        log?.(`error fetching ${ref} with ${api.API_KIND} API: ${error}`);
+        throw error;
       }
     }
 
-    log?.(`chosen ${bestApi.API_KIND} API for ${url}`);
+    let prioritizedApis = _prioritizedApisByOrigin.get(ref.origin);
 
-    if (!bestApi) throw new Error(`unable to find api for ${url}`);
-    const result = await _fetchByUrl(bestApi, url, opts);
+    if (!prioritizedApis) {
+      prioritizedApis = await detectAndPrioritizeApis(ref, opts);
+      _prioritizedApisByOrigin.set(ref.origin, prioritizedApis);
+    }
 
-    _apiByOrigin.set(url.origin, bestApi);
-    return result;
+    log?.(
+      `API priority for ${ref} is ${prioritizedApis
+        .map((x) => x.API_KIND)
+        .join(", ")}`
+    );
+
+    const errors = [];
+
+    for (const api of prioritizedApis) {
+      log?.(`attempting ${api.API_KIND} API for ${ref}`);
+      try {
+        const result = await _fetchByUrl(api, ref, opts);
+        log?.(`successfully used ${api.API_KIND} API for ${ref}`);
+        return result;
+      } catch (error) {
+        log?.(`error attempting ${api.API_KIND} API for ${ref}: ${error}`);
+        errors.push(error);
+      }
+    }
+
+    throw new AggregateError(errors, `no API was successful for ${ref}`);
   }
 
   if (typeof ref === "object") {
@@ -94,67 +86,42 @@ export async function fetch(ref, opts = {}) {
     const fetchedFromOrigin = ref._fedijs?.fetchedFromOrigin;
     const partial = ref._fedijs?.partial;
 
-    if (
-      !partial &&
-      typeof fetchedFromOrigin === "string" &&
-      typeof id === "string" &&
-      new URL(id).origin === fetchedFromOrigin &&
-      !opts.reload
-    ) {
-      if (responseType === "object") {
+    if (typeof id === "string") {
+      if (!partial && fetchedFromOrigin === new URL(id).origin) {
+        log?.(`object is whole and trusted - returning`);
         return ref;
+      } else if (fetchedFromOrigin !== new URL(id).origin) {
+        log?.(`object is not trusted - refetching`);
+        return await fetch(id, opts);
+      } else {
+        log?.(`object is partial - refetching`);
+        return await fetch(id, opts);
       }
+    } else {
+      log?.(`object is transient - returning`);
 
       if (responseType === "collection") {
         if (Symbol.asyncIterator in ref) return ref;
-        return _activitypub.collectionFromObject(ref, opts);
+
+        log?.(`but first, converting to AsyncIterable collection`);
+        return apis.activitypub.collectionFromObject(ref, opts);
       }
-    }
 
-    if (typeof id === "string") {
-      try {
-        return await fetch(ref.id, opts);
-      } catch (error) {
-        log?.(error);
-        return ref;
-      }
-    }
-
-    if (responseType === "object") return ref;
-
-    if (responseType === "collection") {
-      if (Symbol.asyncIterator in ref) return ref;
-      return _activitypub.collectionFromObject(ref, opts);
+      return ref;
     }
   }
 
-  throw new TypeError(`could not fetch ${JSON.stringify(ref)}`);
+  log?.(`invalid type of reference: ${ref}`);
+  throw new TypeError(`invalid type of reference: ${ref}`);
 }
 
 async function _fetchByUrl(api, url, opts = {}) {
-  const log = opts.log;
   const responseType = opts.responseType ?? "object";
 
-  try {
-    if (responseType === "object") {
+  switch (responseType) {
+    case "object":
       return await api.fetchObjectByUrl(url, opts);
-    }
-
-    if (responseType === "collection") {
+    case "collection":
       return await api.fetchCollectionByUrl(url, opts);
-    }
-  } catch (error) {
-    if (api === _activitypub || api === _backend) throw error;
-
-    log?.(`failed to use ${api.API_KIND} api for ${url}: ${error}`);
-    log?.(`falling back to ${_activitypub.API_KIND} api`);
-
-    try {
-      return await _fetchByUrl(_activitypub, url, opts);
-    } catch {
-      throw error;
-    }
   }
-
-  throw new TypeError(`unknown responseType: ${responseType}`);
 }

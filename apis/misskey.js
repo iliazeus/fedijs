@@ -1,26 +1,6 @@
-import * as activitypub from "./fedi-activitypub.js";
+import * as activitypub from "./activitypub.js";
 
 export const API_KIND = "misskey";
-
-const _compatibleSourceRepos = new Set([
-  "https://github.com/misskey-dev/misskey",
-  "https://gitlab.com/satoaki-ooto/foundkey",
-  "https://codeberg.org/firefish/firefish",
-  "https://gitlab.prometheus.systems/firefish/firefish",
-]);
-
-export async function checkUrl(url, opts = {}) {
-  const meta = await _apiFetch(
-    `${url.origin}/api/meta`,
-    { detail: false },
-    opts
-  );
-
-  const repositoryUrl = meta.repositoryUrl;
-  if (typeof repositoryUrl !== "string") return 0.1;
-
-  return _compatibleSourceRepos.has(repositoryUrl) ? 1.0 : 0.8;
-}
 
 export async function fetchObjectByUrl(url, opts = {}) {
   if (url.protocol === "fedijs:") {

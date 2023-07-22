@@ -1,31 +1,5 @@
 export const API_KIND = "activitypub";
 
-export async function checkUrl(url, opts = {}) {
-  return await _checkObject(await fetchObjectByUrl(url, opts), opts);
-}
-
-async function _checkObject(obj, opts = {}) {
-  if (typeof obj !== "object" || obj === null) return 0;
-
-  let context = obj["@context"];
-
-  if (typeof context === "string") {
-    return context === "https://www.w3.org/ns/activitystreams" ? 0.5 : 0;
-  }
-
-  if (Array.isArray(context)) {
-    return context.some((x) => x === "https://www.w3.org/ns/activitystreams")
-      ? 0.4
-      : 0;
-  }
-
-  if (context) {
-    return 0.1;
-  }
-
-  return 0;
-}
-
 async function _fetchObject(ref, opts = {}) {
   if (typeof ref === "object" && ref !== null) return ref;
   if (typeof ref === "string") return await fetchObjectByUrl(ref, opts);

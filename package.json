@@ -1,6 +1,6 @@
 {
   "name": "fedijs",
-  "version": "0.3.12",
+  "version": "0.4.0",
   "description": "an ActivityPub library that aims to be hyper-compatible, falling back to instance-specific APIs where necessary",
   "type": "module",
   "main": "fedi.js",
