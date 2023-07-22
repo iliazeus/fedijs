@@ -39,7 +39,6 @@ export async function fetch(ref, opts = {}) {
     }
 
     let bestApi = _activitypub;
-    let bestConfidence = 0;
 
     if (opts.backendUrl) {
       bestApi = _backend;
@@ -52,20 +51,34 @@ export async function fetch(ref, opts = {}) {
       // APIs need the protocol and searchParams, not the rest
       url.protocol = "fedijs:";
     } else {
-      await Promise.all(
-        _apis.map((api) =>
-          api
-            .checkUrl(url, opts)
-            .then((confidence) => {
-              if (confidence > bestConfidence) {
-                bestApi = api;
-                bestConfidence = confidence;
-              }
-            })
-            .catch((error) => log?.(error))
-        )
+      const guesses = await Promise.all(
+        _apis.map(async (api) => {
+          const confidence = await api.checkUrl(url, opts).catch((err) => {
+            log?.(
+              `${url} does not support ${api.API_KIND} because of error: ${err}`
+            );
+
+            return 0;
+          });
+
+          log?.(
+            `${url} supports ${api.API_KIND} API with confidence ${confidence}`
+          );
+
+          return { api, confidence };
+        })
       );
+
+      let bestConfidence = 0;
+      for (const { api, confidence } of guesses) {
+        if (confidence > bestConfidence) {
+          bestConfidence = confidence;
+          bestApi = api;
+        }
+      }
     }
+
+    log?.(`chosen ${bestApi.API_KIND} API for ${url}`);
 
     if (!bestApi) throw new Error(`unable to find api for ${url}`);
     const result = await _fetchByUrl(bestApi, url, opts);
@@ -119,6 +132,7 @@ export async function fetch(ref, opts = {}) {
 }
 
 async function _fetchByUrl(api, url, opts = {}) {
+  const log = opts.log;
   const responseType = opts.responseType ?? "object";
 
   try {
@@ -131,6 +145,9 @@ async function _fetchByUrl(api, url, opts = {}) {
     }
   } catch (error) {
     if (api === _activitypub || api === _backend) throw error;
+
+    log?.(`failed to use ${api.API_KIND} api for ${url}: ${error}`);
+    log?.(`falling back to ${_activitypub.API_KIND} api`);
 
     try {
       return await _fetchByUrl(_activitypub, url, opts);
