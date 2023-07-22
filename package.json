@@ -1,6 +1,6 @@
 {
   "name": "fedijs",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "an ActivityPub library that aims to be hyper-compatible, falling back to instance-specific APIs where necessary",
   "type": "module",
   "main": "fedi.js",
@@ -20,5 +20,8 @@
   "bugs": {
     "url": "https://github.com/iliazeus/fedijs/issues"
   },
-  "homepage": "https://github.com/iliazeus/fedijs#readme"
+  "homepage": "https://github.com/iliazeus/fedijs#readme",
+  "optionalDependencies": {
+    "undici": "^5.22.1"
+  }
 }

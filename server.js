@@ -1,6 +1,28 @@
 import * as http from "node:http";
 import * as fedi from "./fedi.js";
 
+const undici = await import("undici").catch(() => null);
+
+let baseFetch;
+
+if (undici) {
+  const dispatcher = new undici.Agent({
+    maxResponseSize: 100 * 1024,
+  });
+
+  baseFetch = async function baseFetch(url, init = {}) {
+    return await undici.fetch(url, { ...init, dispatcher });
+  };
+} else {
+  console.warn(`undici is not available; some limits will not be enforced`);
+
+  baseFetch = globalThis.fetch;
+}
+
+if (!baseFetch) {
+  throw new Error(`fetch is not available and undici is not installed`);
+}
+
 const commonHeaders = {
   "access-control-allow-origin": "*",
   "cache-control": "max-age=60, immutable",
@@ -21,17 +43,19 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    console.log(`< get ${paramUrl}`);
+    console.log(`${new Date().toISOString()} < get ${paramUrl}`);
 
     const response = await fedi.fetch(paramUrl, {
       ...Object.fromEntries(paramUrl.searchParams.entries()),
       responseType: "object",
 
-      fetch: (url, opts) => {
-        console.log(`> ${opts?.method ?? "get"} ${url}`);
+      fetch: async function wrappedFetch(url, init) {
+        console.log(
+          `${new Date().toISOString()} > ${init?.method ?? "get"} ${url}`
+        );
 
-        return globalThis.fetch(url, {
-          ...opts,
+        return await baseFetch(url, {
+          ...init,
           signal: AbortSignal.timeout(10_000),
         });
       },
@@ -75,4 +99,16 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(process.env.PORT ?? 8081);
+server.listen(process.env.PORT ?? 8081, () => {
+  let address = server.address();
+
+  if (typeof address === "object") {
+    if (address.family === "IPv6") {
+      address = `[${address.address}]:${address.port}`;
+    } else {
+      address = `${address.address}:${address.port}`;
+    }
+  }
+
+  console.log(`server listening at ${address}`);
+});
