@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY ./package*.json ./
 RUN npm ci
-COPY ./* ./
+COPY ./ ./
 
 ENV PORT=80
 EXPOSE 80
