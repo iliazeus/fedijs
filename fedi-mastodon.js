@@ -147,12 +147,14 @@ function _convertStatus(status, url, opts = {}) {
   // event though it doesn't mind giving the account via activitypub
   const hasAccount = status.account && Object.keys(status.account) > 0;
 
+  const partial = !hasAccount || !context;
+
   return {
     "@context": "https://www.w3.org/ns/activitystreams",
     _fedijs: {
       fetchedFromOrigin: url.origin,
       api: API_KIND,
-      partial: !hasAccount,
+      partial,
     },
 
     type: "Note",
