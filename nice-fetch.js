@@ -41,7 +41,7 @@ export const withRetry =
               response.headers.get("retry-after") ??
               response.headers.get("ratelimit-reset") ??
               response.headers.get("x-ratelimit-reset") ??
-              retryTimeout ??
+              retryTimeout / 1000 ??
               0;
 
             const retryAfterMs = Number(retryAfter) * 1000;
