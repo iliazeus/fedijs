@@ -145,7 +145,7 @@ function _convertStatus(status, url, opts = {}) {
 
   // apparently, akkoma does that sometimes? something to do with unauthed user?
   // event though it doesn't mind giving the account via activitypub
-  const hasAccount = status.account && Object.keys(status.account) > 0;
+  const hasAccount = status.account && Object.keys(status.account).length > 0;
 
   const partial = !hasAccount || !context;
 
