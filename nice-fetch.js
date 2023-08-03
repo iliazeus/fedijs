@@ -1,4 +1,4 @@
-import { pLimit } from "./p-limit.js";
+import { pipe, pLimit, sleep } from "./util.js";
 
 export const makeNiceFetch = (opts = {}) => {
   const {
@@ -138,24 +138,3 @@ export const withConcurrency =
       return await limit(fetch, url, init);
     };
   };
-
-export const sleep = (ms, signal) => {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-};
-
-export const pipe = (val, ...fns) => {
-  for (const fn of fns) val = fn(val);
-  return val;
-};

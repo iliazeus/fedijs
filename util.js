@@ -1,5 +1,27 @@
-// this is https://npmjs.com/yocto-queue and https://npmjs.com/p-limit
-// bundled together for ease of use
+export const sleep = (ms, signal) => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+};
+
+export const pipe = (val, ...fns) => {
+  for (const fn of fns) val = fn(val);
+  return val;
+};
+
+// https://npmjs.com/yocto-queue
+// Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+// MIT license (https://github.com/sindresorhus/yocto-queue/blob/main/license)
 
 /*
 How it works:
@@ -68,6 +90,10 @@ export class Queue {
     }
   }
 }
+
+// https://npmjs.com/p-limit
+// Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+// MIT license (https://github.com/sindresorhus/p-limit/blob/main/license)
 
 export function pLimit(concurrency) {
   if (
