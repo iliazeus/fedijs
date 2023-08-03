@@ -14,6 +14,13 @@ export const sleep = (ms, signal) => {
   });
 };
 
+export const apply = (...args) => {
+  let val = args.pop();
+  const fns = args.reverse();
+  for (const fn of fns) val = fn(val);
+  return val;
+};
+
 export const pipe = (val, ...fns) => {
   for (const fn of fns) val = fn(val);
   return val;

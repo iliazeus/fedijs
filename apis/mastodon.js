@@ -1,9 +1,23 @@
 import * as activitypub from "./activitypub.js";
+import { apply } from "../util.js";
 
 export const API_KIND = "mastodon";
 
-export async function fetchObjectByUrl(url, opts = {}) {
-  if (url.protocol === "fedijs:") {
+export const fetchObjectByUrl = apply(
+  withFedijsSchemeHandler,
+  withMissingRepliesHandler,
+  withMastodonAccountFallback,
+  withMastodonStatusFallback,
+  withMastodonRepliesFallback,
+  fetchObjectWithActivitypub
+);
+
+function withFedijsSchemeHandler(next) {
+  return async function handleFedijsScheme(url, opts = {}) {
+    if (url.protocol !== "fedijs:") {
+      return await next(url, opts);
+    }
+
     const query = url.searchParams.get("q");
 
     if (query === "replies") {
@@ -23,69 +37,109 @@ export async function fetchObjectByUrl(url, opts = {}) {
     }
 
     throw new Error(`unsupported query: ${url}`);
-  }
+  };
+}
 
-  try {
-    const obj = await activitypub.fetchObjectByUrl(url, opts);
-    obj._fedijs.api = API_KIND;
+function withMissingRepliesHandler(next) {
+  return async function handleMissingReplies(url, opts = {}) {
+    const obj = await next(url, opts);
 
-    if (obj.type === "Note" && !obj.replies) {
-      url = await _apiFetchLocation(url, opts);
-      obj.url = String(url);
+    if (obj.type !== "Note" || obj.replies) {
+      return obj;
+    }
 
-      let match;
+    url = await _apiFetchLocation(url, opts);
+    obj.url = String(url);
 
-      match = url.pathname.match(/\/([^/]+)$/);
-      if (match) {
-        const context = await _apiFetch(
-          `${url.origin}/api/v1/statuses/${match[1]}/context`,
-          opts
-        );
+    const match = url.pathname.match(/\/([^/]+)$/);
 
-        obj.replies = _convertStatusRepliesCollection(
-          context.descendants.filter((x) => x.in_reply_to_id === match[1]),
-          url,
-          opts
-        );
-      }
+    if (match) {
+      const context = await _apiFetch(
+        `${url.origin}/api/v1/statuses/${match[1]}/context`,
+        opts
+      );
+
+      obj.replies = _convertStatusRepliesCollection(
+        context.descendants.filter((x) => x.in_reply_to_id === match[1]),
+        url,
+        opts
+      );
     }
 
     return obj;
-  } catch (error) {
-    let match;
+  };
+}
 
-    match = url.pathname.match(/^\/(?:users\/|@)([^/]+)$/);
-    if (match) {
+function withMastodonAccountFallback(next) {
+  return async function fallbackToMastodonAccount(url, opts = {}) {
+    try {
+      return await next(url, opts);
+    } catch (error) {
+      const match = url.pathname.match(/^\/(?:users\/|@)([^/]+)$/);
+
+      if (!match) {
+        // TODO: compose errors properly
+        throw error;
+      }
+
       const account = await _apiFetch(
         `${url.origin}/api/v1/accounts/lookup?acct=${match[1]}`,
         opts
       );
+
       return _convertAccount(account, url, opts);
     }
+  };
+}
 
-    match = url.pathname.match(
-      /^\/(?:users\/|@)([^/]+)\/(?:statuses\/)?([^/]+)$/
-    );
-    if (match) {
+function withMastodonStatusFallback(next) {
+  return async function fallbackToMastodonStatus(url, opts = {}) {
+    try {
+      return await next(url, opts);
+    } catch (error) {
+      const match = url.pathname.match(
+        /^\/(?:users\/|@)([^/]+)\/(?:statuses\/)?([^/]+)$/
+      );
+
+      if (!match) {
+        // TODO: compose errors properly
+        throw error;
+      }
+
       const status = await _apiFetch(
         `${url.origin}/api/v1/statuses/${match[2]}`,
         opts
       );
+
       const context = await _apiFetch(
         `${url.origin}/api/v1/statuses/${match[2]}/context`,
         opts
       );
+
       return _convertStatus(status, url, { ...opts, context });
     }
+  };
+}
 
-    match = url.pathname.match(
-      /^\/(?:users\/|@)([^/]+)\/(?:statuses\/)?([^/]+)\/replies$/
-    );
-    if (match) {
+function withMastodonRepliesFallback(next) {
+  return async function fallbackToMastodonReplies(url, opts = {}) {
+    try {
+      return await next(url, opts);
+    } catch (error) {
+      const match = (match = url.pathname.match(
+        /^\/(?:users\/|@)([^/]+)\/(?:statuses\/)?([^/]+)\/replies$/
+      ));
+
+      if (!match) {
+        // TODO: compose errors properly
+        throw error;
+      }
+
       const status = await _apiFetch(
         `${url.origin}/api/v1/statuses/${match[2]}`,
         opts
       );
+
       const context = await _apiFetch(
         `${url.origin}/api/v1/statuses/${match[2]}/context`,
         opts
@@ -94,9 +148,13 @@ export async function fetchObjectByUrl(url, opts = {}) {
       const apStatus = _convertStatus(status, url, { ...opts, context });
       return apStatus.replies;
     }
+  };
+}
 
-    throw error;
-  }
+async function fetchObjectWithActivitypub(url, opts = {}) {
+  const obj = await activitypub.fetchObjectByUrl(url, opts);
+  obj._fedijs.api = API_KIND;
+  return obj;
 }
 
 export async function fetchCollectionByUrl(url, opts = {}) {
