@@ -107,7 +107,8 @@ function _convertNote(note, url, opts = {}) {
     attributedTo: _convertUser(note.user, url, { opts }),
     published: note.createdAt,
     content: note.text,
-    // TODO: attachments
+
+    attachment: note.files?.map((x) => _convertNoteFile(x, url, opts)),
 
     inReplyTo: note.reply?.uri,
 
@@ -118,6 +119,26 @@ function _convertNote(note, url, opts = {}) {
           opts
         )
       : `fedijs://misskey?o=${url.origin}&q=replies&id=${note.id}`,
+  };
+}
+
+function _convertNoteFile(file, url, opts = {}) {
+  let type = "Document";
+  if (file.type.startsWith("image/")) type = "Image";
+  if (file.type.startsWith("audio/")) type = "Audio";
+  if (file.type.startsWith("video/")) type = "Video";
+
+  return {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    _fedijs: {
+      fetchedFromOrigin: url.origin,
+      api: API_KIND,
+    },
+
+    type,
+    id: file.url,
+    url: file.url,
+    summary: file.comment,
   };
 }
 
