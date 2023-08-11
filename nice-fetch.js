@@ -29,12 +29,16 @@ export const withRetry =
     if (!maxRetryCount) return fetch;
 
     return async function fetchWithRetry(url, init = {}) {
+      let lastResponse = null;
       let lastError = null;
 
       for (let retryCount = 0; retryCount <= maxRetryCount; retryCount += 1) {
         try {
           const response = await fetch(url, init);
           if (response.ok) return response;
+
+          lastError = null;
+          lastResponse = response;
 
           if (response.status === 429 || response.status === 503) {
             const retryAfter =
@@ -62,12 +66,15 @@ export const withRetry =
         } catch (error) {
           if (error === init.signal?.reason) throw error;
 
+          lastResponse = null;
           lastError = error;
+
           if (retryTimeout) await sleep(retryTimeout, init.signal);
         }
       }
 
-      throw lastError;
+      if (lastError) throw lastError;
+      return lastResponse;
     };
   };
 
