@@ -1,3 +1,5 @@
+import { ApiError } from "../util.js";
+
 export const API_KIND = "backend";
 
 export async function checkUrl(url, opts = {}) {
@@ -23,18 +25,7 @@ export async function fetchObjectByUrl(url, opts = {}) {
   });
 
   if (!response.ok) {
-    const json = await response.json().catch(() => undefined);
-
-    throw Object.assign(
-      new Error(
-        `${API_KIND}: failed to fetch ${url}` + (json ? `: ${json.error}` : ""),
-        {
-          statusCode: response.status,
-          api: API_KIND,
-          json: json?.error,
-        }
-      )
-    );
+    throw await ApiError.fromResponse(API_KIND, response);
   }
 
   const obj = await response.json();

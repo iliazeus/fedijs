@@ -1,5 +1,5 @@
 import * as activitypub from "./activitypub.js";
-import { apply } from "../util.js";
+import { apply, ApiError } from "../util.js";
 
 export const API_KIND = "mastodon";
 
@@ -275,17 +275,7 @@ async function _apiFetchLocation(url, opts = {}) {
   const response = await fetch(url, { method: "head" });
 
   if (!response.ok) {
-    const json = response.json().catch(() => undefined);
-
-    throw Object.assign(
-      new Error(
-        `${API_KIND}: failed to fetch ${url}` + (json ? `: ${json.error}` : ""),
-        {
-          statusCode: response.status,
-          json: json?.error,
-        }
-      )
-    );
+    throw await ApiError.fromResponse(API_KIND, response);
   }
 
   return new URL(response.url, url);
@@ -297,17 +287,7 @@ async function _apiFetch(url, opts = {}) {
   const response = await fetch(url);
 
   if (!response.ok) {
-    const json = response.json().catch(() => undefined);
-
-    throw Object.assign(
-      new Error(
-        `${API_KIND}: failed to fetch ${url}` + (json ? `: ${json.error}` : ""),
-        {
-          statusCode: response.status,
-          json: json?.error,
-        }
-      )
-    );
+    throw await ApiError.fromResponse(API_KIND, response);
   }
 
   return await response.json();
@@ -320,18 +300,7 @@ async function* _apiFetchPaged(url, opts = {}) {
     const response = await fetch(url);
 
     if (!response.ok) {
-      const json = response.json().catch(() => undefined);
-
-      throw Object.assign(
-        new Error(
-          `${API_KIND}: failed to fetch ${url}` +
-            (json ? `: ${json.error}` : ""),
-          {
-            statusCode: response.status,
-            json: json?.error,
-          }
-        )
-      );
+      throw await ApiError.fromResponse(API_KIND, response);
     }
 
     yield await response.json();

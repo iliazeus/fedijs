@@ -1,3 +1,5 @@
+import { ApiError } from "../util.js";
+
 export const API_KIND = "activitypub";
 
 async function _fetchObject(ref, opts = {}) {
@@ -22,19 +24,7 @@ export async function fetchObjectByUrl(url, opts = {}) {
   });
 
   if (!response.ok) {
-    const json = response.json().catch(() => undefined);
-
-    throw Object.assign(
-      new Error(
-        `${API_KIND}: failed to fetch ${url}` +
-          (json ? `: ${JSON.stringify(json)}` : ""),
-        {
-          statusCode: response.status,
-          api: API_KIND,
-          json: json?.error,
-        }
-      )
-    );
+    throw await ApiError.fromResponse(API_KIND, response);
   }
 
   const obj = await response.json();

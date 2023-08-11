@@ -1,3 +1,5 @@
+import { ApiError } from "../util.js";
+
 import * as activitypub from "./activitypub.js";
 
 export const API_KIND = "misskey";
@@ -178,18 +180,7 @@ async function _apiFetch(url, params, opts = {}) {
   });
 
   if (!response.ok) {
-    const json = response.json().catch(() => undefined);
-
-    throw Object.assign(
-      new Error(
-        `${API_KIND}: failed to fetch ${url}` +
-          (json ? `: ${json.error?.message}` : ""),
-        {
-          statusCode: response.status,
-          json,
-        }
-      )
-    );
+    throw await ApiError.fromResponse(API_KIND, response);
   }
 
   return await response.json();

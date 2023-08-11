@@ -1,3 +1,35 @@
+export class ApiError extends Error {
+  constructor(api, url, statusCode, json) {
+    let message;
+
+    if (
+      typeof json === "object" &&
+      json !== null &&
+      typeof json.error === "string"
+    ) {
+      message = json.error;
+    } else if (json.error) {
+      message = statusCode + " " + JSON.stringify(json.error);
+    } else if (json) {
+      message = statusCode + " " + JSON.stringify(json);
+    } else {
+      message = String(statusCode);
+    }
+
+    super(message);
+
+    this.api = api;
+    this.url = url;
+    this.statusCode = statusCode;
+    this.json = json;
+  }
+
+  static async fromResponse(api, response) {
+    const json = await response.json().catch(() => undefined);
+    return new ApiError(api, response.url, response.status, json);
+  }
+}
+
 export const sleep = (ms, signal) => {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
